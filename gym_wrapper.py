@@ -66,6 +66,13 @@ class TruncateCondition(ABC):
         raise NotImplementedError()
 
 
+def _parse_observation(obs: tuple[np.ndarray, np.ndarray]) -> dict[str, np.ndarray]:
+    return {
+        "graphic": obs[0],  # Graphic observation
+        "vector": obs[1],  # Vector observation
+    }
+
+
 class GymWrapper(gym.Env, Generic[modelInputType, modelOutputType]):
     def __init__(
         self,
@@ -85,7 +92,7 @@ class GymWrapper(gym.Env, Generic[modelInputType, modelOutputType]):
 
     def reset(self) -> modelInputType:
         raw_obs = self.env.reset()
-
+        raw_obs = _parse_observation(raw_obs)
         self._reward_fn.reset(raw_obs)
         self._done_condition.reset()
 

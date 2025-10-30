@@ -3,7 +3,16 @@ from gym import spaces
 
 import numpy as np
 
-from gym_wrapper import modelInputType, modelOutputType, ActionParser, ObsBuilder, RewardFn, DoneCondition, GymWrapper
+from gym_wrapper import (
+    modelInputType,
+    modelOutputType,
+    ActionParser,
+    ObsBuilder,
+    RewardFn,
+    DoneCondition,
+    NewEnvCondition,
+    GymWrapper,
+)
 
 
 class DefaultActionParser(ActionParser[np.ndarray]):
@@ -52,3 +61,13 @@ class DefaultRewardFn(RewardFn):
 
     def __call__(self, obs: dict[str, np.ndarray]) -> float:
         return 0.0
+
+
+class DefaultNewEnvCondition(NewEnvCondition):
+    def __init__(self, max_episodes: int):
+        self._max_episodes = max_episodes
+        self._current_episodes = 0
+
+    def __call__(self) -> bool:
+        self._current_episodes += 1
+        return self._current_episodes >= self._max_episodes

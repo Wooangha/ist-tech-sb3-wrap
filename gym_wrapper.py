@@ -14,6 +14,7 @@ modelOutputType = TypeVar("modelOutputType")
 
 
 class ObsBuilder(ABC, Generic[modelInputType]):
+
     @property
     @abstractmethod
     def observation_space(self) -> spaces.Space:
@@ -21,21 +22,37 @@ class ObsBuilder(ABC, Generic[modelInputType]):
 
     @abstractmethod
     def reset(self, obs: dict[str, np.ndarray]) -> modelInputType:
+        """Reset the observation builder state when the environment is reset."""
         raise NotImplementedError()
 
     @abstractmethod
     def __call__(self, obs: dict[str, np.ndarray]) -> modelInputType:
+        """
+        Build observation from the raw environment observation.
+        Args:
+            obs (dict[str, np.ndarray]): The raw observation from the environment.
+        Returns:
+            modelInputType: The processed observation to be used by the model.
+        """
         raise NotImplementedError()
 
 
 class ActionParser(ABC, Generic[modelOutputType]):
-    @abstractmethod
-    def __call__(self, model_output: modelOutputType) -> np.ndarray:
-        raise NotImplementedError()
 
     @property
     @abstractmethod
     def action_space(self) -> spaces.Space:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __call__(self, model_output: modelOutputType) -> np.ndarray:
+        """
+        Parse the model output into a valid action.
+        Args:
+            model_output (modelOutputType): The raw output from the model.
+        Returns:
+            np.ndarray: The parsed action to be taken in the environment.
+        """
         raise NotImplementedError()
 
 
@@ -43,26 +60,64 @@ class RewardFn(ABC):
 
     @abstractmethod
     def reset(self, obs: dict[str, np.ndarray]) -> None:
+        """Reset the reward function state when the environment is reset."""
         raise NotImplementedError()
 
     @abstractmethod
     def __call__(self, obs: dict[str, np.ndarray]) -> float:
+        """
+        Compute the reward based on the current observation.
+        Args:
+            obs (dict[str, np.ndarray]): The current observation from the environment.
+        Returns:
+            float: The computed reward.
+        """
         raise NotImplementedError()
 
 
 class DoneCondition(ABC):
+
     @abstractmethod
     def reset(self) -> None:
+        """Reset the done condition when the environment is reset."""
         raise NotImplementedError()
 
     @abstractmethod
     def __call__(self, obs: dict[str, np.ndarray]) -> bool:
+        """
+        Determine if the episode is done based on the current observation.
+        Args:
+            obs (dict[str, np.ndarray]): The current observation from the environment.
+        Returns:
+            bool: True if the episode is done, False otherwise.
+        """
         raise NotImplementedError()
 
 
 class TruncateCondition(ABC):
+
     @abstractmethod
-    def __call__(self, step_count: int) -> bool:
+    def reset(self) -> None:
+        """Reset the truncate condition when the environment is reset."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __call__(self, obs: dict[str, np.ndarray]) -> bool:
+        """
+        Determine if the episode should be truncated based on the step count.
+        Args:
+            obs (dict[str, np.ndarray]): The current observation from the environment.
+        Returns:
+            bool: True if the episode should be truncated, False otherwise.
+        """
+        raise NotImplementedError()
+
+
+class NewEnvCondition(ABC):
+
+    @abstractmethod
+    def __call__(self) -> bool:
+        """Determine if a new environment should be created."""
         raise NotImplementedError()
 
 
@@ -74,23 +129,51 @@ def _parse_observation(obs: tuple[np.ndarray, np.ndarray]) -> dict[str, np.ndarr
 
 
 class GymWrapper(gym.Env, Generic[modelInputType, modelOutputType]):
+    """
+    A Gym wrapper for Immortal Suffering environments.
+    This wrapper allows the use of custom observation builders, action parsers,
+    reward functions, and done conditions.
+    Attributes:
+        env (ImmortalSufferingEnv): The underlying Immortal Suffering environment.
+        obs_builder (ObsBuilder[modelInputType]): The observation builder for the environment.
+        action_parser (ActionParser[modelOutputType]): The action parser for the environment.
+        reward_fn (RewardFn): The reward function for the environment.
+        done_condition (DoneCondition): The done condition for the environment.
+        truncate_condition (Optional[TruncateCondition]): The truncate condition for the environment. Not implemented in this wrapper.
+        new_env_condition (Optional[NewEnvCondition]): The condition to create a new environment.
+
+    Methods:
+        reset() -> modelInputType: Resets the environment and returns the initial observation.
+        step(action: modelOutputType) -> tuple[modelInputType, float, bool, dict]: Takes a step in the environment using the provided action.
+        close() -> None: Closes the environment.
+        observation_space -> spaces.Space: The observation space of the environment.
+        action_space -> spaces.Space: The action space of the environment.
+
+    """
     def __init__(
         self,
-        env: ImmortalSufferingEnv,
+        env_builder: Callable[[], ImmortalSufferingEnv],
         obs_builder: ObsBuilder[modelInputType],
+        action_parser: ActionParser[modelOutputType],
         reward_fn: RewardFn,
         done_condition: DoneCondition,
-        action_parser: ActionParser[modelOutputType],
         truncate_condition: Optional[TruncateCondition] = None,
+        new_env_condition: Optional[NewEnvCondition] = None,
     ):
-        self.env = env
+        self._env_builder = env_builder
+        self._new_env_condition = new_env_condition
         self._obs_builder = obs_builder
         self._reward_fn = reward_fn
         self._done_condition = done_condition
         self._action_parser = action_parser
         self._truncate_condition = truncate_condition
+        self.env = self._env_builder()
 
     def reset(self) -> modelInputType:
+        if self._new_env_condition and self._new_env_condition():
+            self.env.close()
+            self.env = self._env_builder()
+
         raw_obs = self.env.reset()
         raw_obs = _parse_observation(raw_obs)
         self._reward_fn.reset(raw_obs)

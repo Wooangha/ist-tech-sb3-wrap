@@ -68,22 +68,24 @@ def main():
     # 여기서는 간단히 포트 오프셋 적용
     def make_env_with_port(rank):
         def _thunk():
-            base_env = ImmortalSufferingEnv(
-                game_path=args.game_path,
-                port=find_free_tcp_port(),
-                time_scale=args.time_scale,
-                seed=args.seed + rank,
-                width=args.width,
-                height=args.height,
-                verbose=args.verbose,
-            )
+            def env_builder():
+                return ImmortalSufferingEnv(
+                    game_path=args.game_path,
+                    port=find_free_tcp_port(),
+                    time_scale=args.time_scale,
+                    seed=args.seed + rank,
+                    width=args.width,
+                    height=args.height,
+                    verbose=args.verbose,
+                )
             import default_settings
             return gym_wrapper.GymWrapper(
-                env=base_env,
+                env_builder=env_builder,
                 action_parser=default_settings.DefaultActionParser(spaces.MultiDiscrete([2, 2, 2, 2, 2, 2, 2, 2])),
                 obs_builder=default_settings.DefaultObsBuilder(spaces.Box(low=-np.inf, high=np.inf, shape=(103,), dtype=np.float32)),
                 reward_fn=default_settings.DefaultRewardFn(),
                 done_condition=default_settings.DefaultDoneCondition(args.episode_max_steps),
+                new_env_condition=default_settings.DefaultNewEnvCondition(10),
             )
 
         return _thunk

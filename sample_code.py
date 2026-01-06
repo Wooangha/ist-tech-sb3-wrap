@@ -85,7 +85,6 @@ def main():
                 obs_builder=default_settings.DefaultObsBuilder(spaces.Box(low=-np.inf, high=np.inf, shape=(103,), dtype=np.float32)),
                 reward_fn=default_settings.DefaultRewardFn(),
                 done_condition=default_settings.DefaultDoneCondition(args.episode_max_steps),
-                new_env_condition=default_settings.DefaultNewEnvCondition(10),
             )
 
         return _thunk

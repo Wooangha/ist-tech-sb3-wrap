@@ -158,10 +158,8 @@ class GymWrapper(gym.Env, Generic[modelInputType, modelOutputType]):
         reward_fn: RewardFn,
         done_condition: DoneCondition,
         truncate_condition: Optional[TruncateCondition] = None,
-        new_env_condition: Optional[NewEnvCondition] = None,
     ):
         self._env_builder = env_builder
-        self._new_env_condition = new_env_condition
         self._obs_builder = obs_builder
         self._reward_fn = reward_fn
         self._done_condition = done_condition
@@ -170,9 +168,8 @@ class GymWrapper(gym.Env, Generic[modelInputType, modelOutputType]):
         self.env = self._env_builder()
 
     def reset(self) -> modelInputType:
-        if self._new_env_condition and self._new_env_condition():
-            self.env.close()
-            self.env = self._env_builder()
+        self.env.close()
+        self.env = self._env_builder()
 
         raw_obs = self.env.reset()
         raw_obs = _parse_observation(raw_obs)

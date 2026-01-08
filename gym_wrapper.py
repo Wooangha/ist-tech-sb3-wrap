@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Callable, TypeVar, Generic
+from typing import Optional, Callable, TypeVar, Generic, Any
 
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 
 import numpy as np
 
@@ -150,6 +150,7 @@ class GymWrapper(gym.Env, Generic[modelInputType, modelOutputType]):
         action_space -> spaces.Space: The action space of the environment.
 
     """
+
     def __init__(
         self,
         env_builder: Callable[[], ImmortalSufferingEnv],
@@ -165,31 +166,48 @@ class GymWrapper(gym.Env, Generic[modelInputType, modelOutputType]):
         self._done_condition = done_condition
         self._action_parser = action_parser
         self._truncate_condition = truncate_condition
-        self.env = self._env_builder()
+        self.env = None
 
-    def reset(self) -> modelInputType:
-        self.env.close()
+    def reset(
+        self,
+        *,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> tuple[modelInputType, dict[str, Any]]:
+        if self.env is not None:
+            self.env.close()
+            self.env = None
         self.env = self._env_builder()
 
         raw_obs = self.env.reset()
         raw_obs = _parse_observation(raw_obs)
         self._reward_fn.reset(raw_obs)
         self._done_condition.reset()
+        if self._truncate_condition is not None:
+            self._truncate_condition.reset()
 
-        return self._obs_builder.reset(raw_obs)
+        return self._obs_builder.reset(raw_obs), {}
 
-    def step(self, action: modelOutputType) -> tuple[modelInputType, float, bool, dict]:
+    def step(self, action: modelOutputType) -> tuple[modelInputType, float, bool, bool, dict]:
+        if self.env is None:
+            raise RuntimeError("Environment not initialized. Call reset() before step().")
+
         parsed_action = self._action_parser(action)
         raw_obs, reward, done, info = self.env.step(parsed_action)
 
         obs = self._obs_builder(raw_obs)
         reward = self._reward_fn(raw_obs)
         done = done or self._done_condition(raw_obs)
+        truncated = False
+        if self._truncate_condition is not None:
+            truncated = self._truncate_condition(raw_obs)
 
-        return obs, reward, done, info
+        return obs, reward, done, truncated, info
 
     def close(self) -> None:
-        self.env.close()
+        if self.env is not None:
+            self.env.close()
+            self.env = None
 
     @property
     def observation_space(self) -> spaces.Space:

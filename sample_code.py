@@ -2,9 +2,9 @@ import os
 import argparse
 import numpy as np
 
-# import gymnasium as gym
+import gymnasium as gym
 # from gymnasium import spaces
-import gym
+# import gym
 from gym import spaces
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback

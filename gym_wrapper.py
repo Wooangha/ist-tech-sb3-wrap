@@ -128,7 +128,7 @@ def _parse_observation(obs: tuple[np.ndarray, np.ndarray]) -> dict[str, np.ndarr
     }
 
 
-class GymWrapper(gym.Env, Generic[modelInputType, modelOutputType]):
+class GymWrapper(gym.Env[modelInputType, modelOutputType]):
     """
     A Gym wrapper for Immortal Suffering environments.
     This wrapper allows the use of custom observation builders, action parsers,
